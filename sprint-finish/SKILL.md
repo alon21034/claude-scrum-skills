@@ -1,5 +1,6 @@
 ---
-description: Finalize active sprint by resolving non-terminal tasks
+name: sprint-finish
+description: Finalize an active sprint by resolving all non-terminal tasks and closing the sprint safely.
 ---
 
 Finalize the active sprint by resolving all non-terminal tasks.

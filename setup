@@ -43,12 +43,16 @@ default_commands_dir() {
   local host="${1:-auto}"
   case "$host" in
     codex)
-      printf "%s\n" "$HOME/.codex/commands"
+      printf "%s\n" "$HOME/.codex/prompts"
       ;;
     claude)
       printf "%s\n" "$HOME/.claude/commands"
       ;;
     auto)
+      if [[ -d "$HOME/.codex/prompts" ]]; then
+        printf "%s\n" "$HOME/.codex/prompts"
+        return
+      fi
       if [[ -d "$HOME/.codex/commands" ]]; then
         printf "%s\n" "$HOME/.codex/commands"
         return
@@ -57,7 +61,7 @@ default_commands_dir() {
         printf "%s\n" "$HOME/.claude/commands"
         return
       fi
-      printf "%s\n" "$HOME/.codex/commands"
+      printf "%s\n" "$HOME/.codex/prompts"
       ;;
   esac
 }
@@ -69,7 +73,7 @@ Usage: ./setup [options]
 Options:
   --host <auto|claude|codex>  Host to target for default paths (default: auto)
   --skill-root <path>    install root for sprint skill/bin (default: ~/.codex/skills/sprint, host-aware)
-  --commands-dir <path>  commands directory (default: ~/.codex/commands, fallback ~/.claude/commands)
+  --commands-dir <path>  slash-command directory (default: ~/.codex/prompts, fallback ~/.claude/commands)
   --dry-run              Print actions without writing files
   -h, --help             Show this help
 
@@ -100,6 +104,39 @@ run() {
     return 0
   fi
   "$@"
+}
+
+install_file() {
+  local mode="$1"
+  local src="$2"
+  local dst="$3"
+
+  if [[ -e "$dst" ]]; then
+    local src_abs dst_abs
+    src_abs="$(cd "$(dirname "$src")" && pwd -P)/$(basename "$src")"
+    dst_abs="$(cd "$(dirname "$dst")" && pwd -P)/$(basename "$dst")"
+    if [[ "$src_abs" == "$dst_abs" ]]; then
+      return 0
+    fi
+  fi
+
+  run install -m "$mode" "$src" "$dst"
+}
+
+link_skill_alias() {
+  local alias_name="$1"
+  local skills_parent skills_entry alias_path target_rel
+  skills_parent="$(dirname "$SKILL_ROOT")"
+  skills_entry="$(basename "$SKILL_ROOT")"
+  alias_path="$skills_parent/$alias_name"
+  target_rel="$skills_entry/$alias_name"
+
+  if [[ -e "$alias_path" && ! -L "$alias_path" ]]; then
+    echo "WARN: skipping alias $alias_path (exists and is not a symlink)" >&2
+    return 0
+  fi
+
+  run ln -sfn "$target_rel" "$alias_path"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -161,6 +198,9 @@ COMMANDS_DIR="$(expand_path "$COMMANDS_DIR")"
 REQUIRED_FILES=(
   "sprint/SKILL.md"
   "sprint/SKILL.md.tmpl"
+  "sprint-task/SKILL.md"
+  "sprint-board/SKILL.md"
+  "sprint-finish/SKILL.md"
   "bin/sprint-setup"
   "bin/sprint-board"
   "bin/sprint-finish"
@@ -177,19 +217,28 @@ for rel in "${REQUIRED_FILES[@]}"; do
   fi
 done
 
-run mkdir -p "$SKILL_ROOT/sprint" "$SKILL_ROOT/bin" "$COMMANDS_DIR"
+run mkdir -p "$SKILL_ROOT/sprint" "$SKILL_ROOT/sprint-task" "$SKILL_ROOT/sprint-board" "$SKILL_ROOT/sprint-finish" "$SKILL_ROOT/bin" "$COMMANDS_DIR"
 
-run install -m 0644 "$SCRIPT_DIR/sprint/SKILL.md" "$SKILL_ROOT/sprint/SKILL.md"
-run install -m 0644 "$SCRIPT_DIR/sprint/SKILL.md.tmpl" "$SKILL_ROOT/sprint/SKILL.md.tmpl"
+install_file 0644 "$SCRIPT_DIR/sprint/SKILL.md" "$SKILL_ROOT/sprint/SKILL.md"
+install_file 0644 "$SCRIPT_DIR/sprint/SKILL.md.tmpl" "$SKILL_ROOT/sprint/SKILL.md.tmpl"
+install_file 0644 "$SCRIPT_DIR/sprint-task/SKILL.md" "$SKILL_ROOT/sprint-task/SKILL.md"
+install_file 0644 "$SCRIPT_DIR/sprint-board/SKILL.md" "$SKILL_ROOT/sprint-board/SKILL.md"
+install_file 0644 "$SCRIPT_DIR/sprint-finish/SKILL.md" "$SKILL_ROOT/sprint-finish/SKILL.md"
 
-run install -m 0755 "$SCRIPT_DIR/bin/sprint-setup" "$SKILL_ROOT/bin/sprint-setup"
-run install -m 0755 "$SCRIPT_DIR/bin/sprint-board" "$SKILL_ROOT/bin/sprint-board"
-run install -m 0755 "$SCRIPT_DIR/bin/sprint-finish" "$SKILL_ROOT/bin/sprint-finish"
+install_file 0755 "$SCRIPT_DIR/bin/sprint-setup" "$SKILL_ROOT/bin/sprint-setup"
+install_file 0755 "$SCRIPT_DIR/bin/sprint-board" "$SKILL_ROOT/bin/sprint-board"
+install_file 0755 "$SCRIPT_DIR/bin/sprint-finish" "$SKILL_ROOT/bin/sprint-finish"
 
-run install -m 0644 "$SCRIPT_DIR/commands/sprint.md" "$COMMANDS_DIR/sprint.md"
-run install -m 0644 "$SCRIPT_DIR/commands/sprint-board.md" "$COMMANDS_DIR/sprint-board.md"
-run install -m 0644 "$SCRIPT_DIR/commands/sprint-finish.md" "$COMMANDS_DIR/sprint-finish.md"
-run install -m 0644 "$SCRIPT_DIR/commands/sprint-task.md" "$COMMANDS_DIR/sprint-task.md"
+install_file 0644 "$SCRIPT_DIR/commands/sprint.md" "$COMMANDS_DIR/sprint.md"
+install_file 0644 "$SCRIPT_DIR/commands/sprint-board.md" "$COMMANDS_DIR/sprint-board.md"
+install_file 0644 "$SCRIPT_DIR/commands/sprint-finish.md" "$COMMANDS_DIR/sprint-finish.md"
+install_file 0644 "$SCRIPT_DIR/commands/sprint-task.md" "$COMMANDS_DIR/sprint-task.md"
+
+# Create top-level skill aliases so hosts that only scan one directory level
+# can discover these as independent skills.
+link_skill_alias "sprint-task"
+link_skill_alias "sprint-board"
+link_skill_alias "sprint-finish"
 
 if $DRY_RUN; then
   echo "Dry run complete."
@@ -207,5 +256,7 @@ Installed into:
 Quick checks:
   ls $SKILL_ROOT/bin/sprint-{setup,board,finish}
   ls $SKILL_ROOT/sprint/SKILL.md
+  ls $SKILL_ROOT/sprint-{task,board,finish}/SKILL.md
+  ls $(dirname "$SKILL_ROOT")/sprint-{task,board,finish}
   ls $COMMANDS_DIR/sprint{,-task,-board,-finish}.md
 EOF

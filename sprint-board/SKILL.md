@@ -1,5 +1,6 @@
 ---
-description: Render a sprint board snapshot from .sprint.json
+name: sprint-board
+description: Render a snapshot table for the active sprint from .sprint.json with progress and dependency status.
 ---
 
 Read .sprint.json in the current directory (or $CONDUCTOR_ROOT_PATH/.sprint.json if set) and render a snapshot of the sprint board as a formatted table.
