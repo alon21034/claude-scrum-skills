@@ -19,6 +19,7 @@ Lightweight Scrum coordination layer for parallel AI development with [Conductor
 | `bin/sprint-board` | Live terminal board (`watch -n 3` + `jq`) |
 | `bin/sprint-approve` | Mark task done after review |
 | `commands/sprint.md` | `/sprint` slash command (entry point) |
+| `commands/sprint-task.md` | `/sprint-task` slash command (manual claim + approval gate) |
 | `commands/sprint-board.md` | `/sprint-board` slash command (one-shot snapshot) |
 | `commands/sprint-approve.md` | `/sprint-approve` slash command |
 
@@ -45,7 +46,7 @@ cd ~/.claude/skills/gstack-sprint && ./setup
 ```bash
 ls ~/.claude/skills/gstack/bin/sprint-{setup,board,approve}
 ls ~/.claude/skills/gstack/sprint/SKILL.md
-ls ~/.claude/commands/sprint-{board,approve}.md
+ls ~/.claude/commands/sprint-{task,board,approve}.md
 ```
 
 Optional: use custom install paths (for repo-local gstack installs):
@@ -66,6 +67,6 @@ Optional: use custom install paths (for repo-local gstack installs):
 1. In any CC session in your project: `/sprint`
 2. Describe your sprint topic (or use an existing `/autoplan` output)
 3. Open Conductor, press ⌘+K once per task
-4. Each workspace auto-starts executing its task
+4. In each workspace, run `/sprint-task` to claim/view a task, then approve before implementation starts
 5. Watch progress: `sprint-board .gstack-sprint.json`
 6. When a task shows REVIEW: `sprint-approve <task-id>`
