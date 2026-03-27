@@ -31,6 +31,12 @@ Lightweight Scrum coordination layer for parallel AI development with [Conductor
 | `/sprint-board` | Snapshot sprint progress table | Quick status check across workspaces |
 | `/sprint-finish` | Resolve remaining tasks and close sprint | End sprint and finalize statuses |
 
+Conductor note:
+
+- Codex Desktop slash commands come from `~/.codex/prompts` and show as `prompts:sprint-*`.
+- Conductor skill picker reads `SKILL.md` manifests. This package installs matching skills: `sprint-task`, `sprint-board`, `sprint-finish`.
+- Installer also creates top-level skill aliases (`~/.{codex|claude}/skills/sprint-{task,board,finish}`) so hosts that scan one level deep can discover them.
+
 ### Usage
 
 1. In any CC session in your project: `/sprint`
@@ -73,13 +79,15 @@ cd ~/.codex/skills/sprint && ./setup
 3. Verify files landed in the expected locations:
 
 ```bash
-ls ~/.codex/commands/sprint{,-task,-board,-finish}.md
+ls ~/.codex/prompts/sprint{,-task,-board,-finish}.md
 ls ~/.codex/skills/sprint/bin/sprint-{setup,board,finish}
 ls ~/.codex/skills/sprint/sprint/SKILL.md
+ls ~/.codex/skills/sprint/sprint-{task,board,finish}/SKILL.md
+ls ~/.codex/skills/sprint-{task,board,finish}
 ```
 
 Optional: use custom install paths:
 
 ```bash
-./setup --skill-root .codex/skills/sprint --commands-dir .codex/commands
+./setup --skill-root .codex/skills/sprint --commands-dir .codex/prompts
 ```

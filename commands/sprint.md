@@ -1,3 +1,8 @@
+---
+description: Create or update a sprint plan for Conductor workspaces
+argument-hint: 'TOPIC="<sprint topic>"'
+---
+
 Create or update a sprint plan for this repo.
 
 Goal:

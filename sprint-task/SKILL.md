@@ -1,6 +1,6 @@
 ---
-description: Claim/show one workspace sprint task with approval gate
-argument-hint: '[WORKSPACE=<name>]'
+name: sprint-task
+description: Claim/show one workspace sprint task with approval gate, then implement only after explicit user approval.
 ---
 
 Manual sprint task entrypoint.
