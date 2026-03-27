@@ -18,6 +18,7 @@ Lightweight Scrum coordination layer for parallel AI development with [Conductor
 | `bin/sprint-setup` | Conductor workspace bootstrap — claims task, creates branch |
 | `bin/sprint-board` | Live terminal board (`watch -n 3` + `jq`) |
 | `bin/sprint-approve` | Mark task done after review |
+| `commands/sprint.md` | `/sprint` slash command (entry point) |
 | `commands/sprint-board.md` | `/sprint-board` slash command (one-shot snapshot) |
 | `commands/sprint-approve.md` | `/sprint-approve` slash command |
 
