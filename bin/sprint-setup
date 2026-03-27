@@ -156,11 +156,19 @@ ${TASK_DESC}
 
 Instructions:
 1. Read .gstack-sprint.json to understand the full sprint context and what other agents are working on.
-2. Implement the task described above. Stay within the scope of your task — do not touch files assigned to other workspaces.
-3. When implementation is complete, update the task status to "review":
+2. First, show the user a short task brief:
+   - sprint topic
+   - task id and title
+   - full description
+   - current branch
+3. Ask for explicit approval before implementation:
+   "Approve start implementation for task ${TASK_ID}? (yes/no)"
+4. Do NOT implement anything until the user clearly approves.
+5. After approval, implement only this task's scope.
+6. When implementation is complete, update the task status to "review":
    jq --argjson id ${TASK_ID} '(.tasks[] | select(.id == \$id)).status = "review"' .gstack-sprint.json > .gstack-sprint.json.tmp && mv .gstack-sprint.json.tmp .gstack-sprint.json
-4. Summarize what you changed and why.
-5. Do NOT merge or create a PR — the human reviewer will run sprint-approve ${TASK_ID} when ready.
+7. Summarize what you changed and why.
+8. Do NOT merge or create a PR — the human reviewer will run sprint-approve ${TASK_ID} when ready.
 SPRINT_TASK_EOF
 
 echo "Wrote /sprint-task slash command to $COMMANDS_DIR/sprint-task.md"
