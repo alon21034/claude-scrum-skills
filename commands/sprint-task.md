@@ -1,14 +1,17 @@
 ---
 description: Pick a sprint task, implement it, and verify acceptance criteria
-argument-hint: '[TASK_ID=<id>]'
+argument-hint: '[TASK_ID=<id>] [--force]'
 ---
 
 Manual sprint task entrypoint.
 
+Options:
+- `--force`: Skip the approval step and start implementation immediately.
+
 Goal:
 1. Show available tasks and let the user pick one (or use the provided TASK_ID).
 2. Show full task details including acceptance criteria.
-3. Ask user approval before implementing.
+3. Ask user approval before implementing (skip if `--force`).
 4. After implementation, verify acceptance criteria and report pass/fail before marking review.
 
 Run this bash first:
@@ -48,9 +51,9 @@ Then:
    - Task id and title
    - Full task description (including acceptance criteria)
    - Current git branch
-4. Ask:
+4. If `--force` was passed, skip to step 6. Otherwise, ask:
    "Approve start implementation for this task? (yes/no)"
-5. Do not start implementation until user explicitly approves.
+5. Do not start implementation until user explicitly approves (unless `--force`).
 6. If approved, mark task as in-progress:
    `jq --argjson id <TASK_ID> '(.tasks[] | select(.id == $id)).status = "in-progress" | (.tasks[] | select(.id == $id)).started_at = "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"' "$ROOT/.context/.sprint.json" > "$ROOT/.context/.sprint.json.tmp" && mv "$ROOT/.context/.sprint.json.tmp" "$ROOT/.context/.sprint.json"`
 7. Implement only this task's scope.
