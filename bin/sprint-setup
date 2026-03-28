@@ -84,6 +84,74 @@ if [ "$SPRINT_STATUS" != "active" ]; then
   exit 1
 fi
 
+BLOCKER_CHECK_BRANCH="${SPRINT_BLOCKER_CHECK_BRANCH:-main}"
+
+resolve_branch_head_commit() {
+  local branch="$1"
+  local ref=""
+
+  if git rev-parse --verify "${branch}^{commit}" >/dev/null 2>&1; then
+    ref="$branch"
+  elif git rev-parse --verify "origin/${branch}^{commit}" >/dev/null 2>&1; then
+    ref="origin/${branch}"
+  else
+    return 1
+  fi
+
+  git rev-parse "${ref}^{commit}" 2>/dev/null
+}
+
+refresh_review_tasks_from_git_log() {
+  local main_ref="$1"
+  local review_commit=""
+  local task_id=""
+  local task_branch=""
+  local ids_json=""
+  local completed_ts=""
+  local resolved_ids=()
+
+  if ! git rev-parse --verify "${main_ref}^{commit}" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  while IFS=$'\t' read -r task_id task_branch; do
+    if [ -z "$task_id" ] || [ -z "$task_branch" ]; then
+      continue
+    fi
+
+    if ! review_commit="$(resolve_branch_head_commit "$task_branch")"; then
+      continue
+    fi
+
+    if git log --format=%H "$main_ref" | grep -Fxq "$review_commit"; then
+      resolved_ids+=("$task_id")
+    fi
+  done < <(jq -r '
+    .tasks[]
+    | select(.status == "review")
+    | select((.branch // "") != "")
+    | "\(.id | tostring)\t\(.branch)"
+  ' "$SPRINT_FILE")
+
+  if [ "${#resolved_ids[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  ids_json="$(printf '%s\n' "${resolved_ids[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')"
+  completed_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  jq --argjson ids "$ids_json" --arg ts "$completed_ts" '
+    .tasks |= map(
+      if (.status == "review" and ((.id | tostring) as $task_id | (($ids | index($task_id)) != null)))
+      then .status = "done" | .completed_at = (.completed_at // $ts)
+      else .
+      end
+    )
+  ' "$SPRINT_FILE" > "$SPRINT_FILE.tmp" && mv "$SPRINT_FILE.tmp" "$SPRINT_FILE"
+
+  echo "Auto-resolved review blockers via git log on ${main_ref}: ${resolved_ids[*]}"
+}
+
 # Claim a task atomically
 # If all pending tasks are blocked by dependencies, prompt the user to wait or exit.
 TASK_ID=""
@@ -96,6 +164,9 @@ PROMPTED_WAIT=0
 
 for attempt in $(seq 1 "$MAX_RETRIES"); do
   acquire_lock 10
+
+  # Review tasks can silently stop being blockers once their branch head appears on main.
+  refresh_review_tasks_from_git_log "$BLOCKER_CHECK_BRANCH"
 
   # Find first pending task whose dependencies (if any) all exist and are done.
   # Missing dependency IDs must keep the task blocked.
@@ -284,19 +355,20 @@ ${TASK_DESC}
 
 Instructions:
 1. Read .context/.sprint.json to understand the full sprint context and what other agents are working on.
-2. First, show the user a short task brief:
+2. If pending tasks are blocked by review dependencies, run sprint-setup again first so git-log checks on main can auto-clear already-merged blockers.
+3. First, show the user a short task brief:
    - sprint topic
    - task id and title
    - full description
    - current branch
-3. Ask for explicit approval before implementation:
+4. Ask for explicit approval before implementation:
    "Approve start implementation for task ${TASK_ID}? (yes/no)"
-4. Do NOT implement anything until the user clearly approves.
-5. After approval, implement only this task's scope.
-6. When implementation is complete, update the task status to "review" using a lockdir for safe concurrent access:
+5. Do NOT implement anything until the user clearly approves.
+6. After approval, implement only this task's scope.
+7. When implementation is complete, update the task status to "review" using a lockdir for safe concurrent access:
    while ! mkdir ${LOCK_DIR_REL} 2>/dev/null; do sleep 0.2; done; jq --argjson id ${TASK_ID} '(.tasks[] | select(.id == \$id)).status = "review"' .context/.sprint.json > .context/.sprint.json.tmp && mv .context/.sprint.json.tmp .context/.sprint.json; rmdir ${LOCK_DIR_REL}; sprint-board .context/.sprint.json >/dev/null 2>&1 || ./bin/sprint-board .context/.sprint.json >/dev/null 2>&1
-7. Summarize what you changed and why.
-8. Do NOT merge or create a PR — the human reviewer will run sprint-finish when ready to close the sprint.
+8. Summarize what you changed and why.
+9. Do NOT merge or create a PR — the human reviewer will run sprint-finish when ready to close the sprint.
 SPRINT_TASK_EOF
 
   echo "Wrote /sprint-task slash command to $COMMANDS_DIR/sprint-task.md"

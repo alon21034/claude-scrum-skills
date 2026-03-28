@@ -75,6 +75,6 @@ Then:
    - sprint id/topic/task count
    - where file was written
    - which task source was used: `gstack/autoplan` or `local fallback`
-   - `sprint-board $SPRINT_FILE --open`
+   - `sprint-board $SPRINT_FILE` (auto-opens HTML board) or `sprint-board $SPRINT_FILE --text`
    - `Press ⌘+K once per task in Conductor`
    - `Run sprint-finish when done`

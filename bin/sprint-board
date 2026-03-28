@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# sprint-board — Generate an HTML sprint dashboard from .sprint.json
-# Usage: sprint-board [path-to-sprint-file] [--output path] [--open]
+# sprint-board — Generate sprint status output from .sprint.json
+# Usage: sprint-board [path-to-sprint-file] [--output path] [--open|--no-open|--text]
 # Default sprint file resolution:
 #   1) $CONDUCTOR_ROOT_PATH/.context/.sprint.json (if set and exists)
 #   2) .context/.sprint.json in current directory
@@ -10,18 +10,21 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: sprint-board [path-to-sprint-file] [--output path] [--open]
+Usage: sprint-board [path-to-sprint-file] [--output path] [--open|--no-open|--text]
 
 Options:
   --output <path>   Write HTML to this file path.
-  --open            Open generated HTML in the default browser.
+  --open            Open generated HTML in the default browser (default).
+  --no-open         Generate HTML but do not open it.
+  --text            Print a text-only board to stdout.
   -h, --help        Show this help.
 USAGE
 }
 
 SPRINT_FILE_ARG=""
 OUTPUT_FILE=""
-AUTO_OPEN=0
+AUTO_OPEN=1
+TEXT_ONLY=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -35,6 +38,13 @@ while [ "$#" -gt 0 ]; do
       ;;
     --open)
       AUTO_OPEN=1
+      ;;
+    --no-open)
+      AUTO_OPEN=0
+      ;;
+    --text)
+      TEXT_ONLY=1
+      AUTO_OPEN=0
       ;;
     -h|--help)
       usage
@@ -90,6 +100,177 @@ if ! SPRINT_FILE="$(resolve_sprint_file)"; then
 fi
 
 SPRINT_FILE="$(cd "$(dirname "$SPRINT_FILE")" && pwd)/$(basename "$SPRINT_FILE")"
+
+if [ "$TEXT_ONLY" -eq 1 ]; then
+  if [ -n "$OUTPUT_FILE" ]; then
+    echo "ERROR: --output cannot be used with --text." >&2
+    exit 1
+  fi
+
+  python3 - "$SPRINT_FILE" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+sprint_path = sys.argv[1]
+
+with open(sprint_path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+sprint = data.get("sprint", {})
+tasks = data.get("tasks", [])
+now = datetime.now(timezone.utc)
+id_to_status = {task.get("id"): task.get("status", "unknown") for task in tasks}
+
+def as_text(value, fallback="-"):
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text if text else fallback
+
+def parse_iso(ts):
+    ts = ts.strip()
+    if ts.endswith("Z"):
+        ts = ts[:-1] + "+00:00"
+    dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+def elapsed_label(started_at):
+    if not started_at:
+        return "not started"
+    try:
+        start_dt = parse_iso(str(started_at))
+    except Exception:
+        return "invalid timestamp"
+
+    delta_seconds = int((now - start_dt).total_seconds())
+    if delta_seconds < 0:
+        delta_seconds = 0
+
+    days, rem = divmod(delta_seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+
+    if days > 0:
+        return f"{days}d {hours}h"
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+def task_sort_key(task):
+    task_id = task.get("id")
+    try:
+        return (0, int(task_id))
+    except Exception:
+        return (1, str(task_id))
+
+def status_counts(items):
+    counts = {
+        "done": 0,
+        "backlog": 0,
+        "deleted": 0,
+        "review": 0,
+        "in-progress": 0,
+        "pending": 0,
+    }
+    for task in items:
+        status = task.get("status")
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+def format_table(headers, rows):
+    all_rows = [headers] + rows
+    widths = [0] * len(headers)
+    for row in all_rows:
+        for idx, value in enumerate(row):
+            widths[idx] = max(widths[idx], len(str(value)))
+
+    def fmt_row(row):
+        return " | ".join(str(value).ljust(widths[idx]) for idx, value in enumerate(row))
+
+    lines = [
+        fmt_row(headers),
+        "-+-".join("-" * width for width in widths),
+    ]
+    lines.extend(fmt_row(row) for row in rows)
+    return "\n".join(lines)
+
+tasks_sorted = sorted(tasks, key=task_sort_key)
+counts = status_counts(tasks_sorted)
+generated_at = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+sprint_topic = as_text(sprint.get("topic"), "(untitled sprint)")
+sprint_status = as_text(sprint.get("status"), "unknown").upper()
+
+summary = (
+    f"{counts['done']}/{len(tasks_sorted)} done"
+    f" | {counts['backlog']} backlog"
+    f" | {counts['deleted']} deleted"
+    f" | {counts['review']} in review"
+    f" | {counts['in-progress']} in progress"
+    f" | {counts['pending']} pending"
+)
+
+print(f"Sprint: {sprint_topic}")
+print(f"Status: {sprint_status} | Tasks: {len(tasks_sorted)} | Generated: {generated_at}")
+print(f"Source: {sprint_path}")
+print(f"Progress: {summary}")
+print()
+
+task_rows = []
+for task in tasks_sorted:
+    task_rows.append([
+        as_text(task.get("id")),
+        as_text(task.get("title")),
+        as_text(task.get("status"), "unknown"),
+        as_text(task.get("workspace"), "-"),
+        as_text(task.get("branch"), "-"),
+        elapsed_label(task.get("started_at")),
+    ])
+
+print("Tasks")
+if task_rows:
+    print(format_table(["ID", "Title", "Status", "Workspace", "Branch", "Elapsed"], task_rows))
+else:
+    print("No tasks found.")
+print()
+
+dependency_rows = []
+for task in tasks_sorted:
+    deps = task.get("depends_on") or []
+    if not deps:
+        continue
+
+    dep_details = []
+    all_resolved = True
+    for dep in deps:
+        dep_status = id_to_status.get(dep)
+        if dep_status is None:
+            all_resolved = False
+            dep_details.append(f"{dep} (missing)")
+        else:
+            if dep_status != "done":
+                all_resolved = False
+            dep_details.append(f"{dep} ({dep_status})")
+
+    dependency_rows.append([
+        as_text(task.get("id")),
+        as_text(task.get("title")),
+        ", ".join(str(dep) for dep in deps),
+        ", ".join(dep_details),
+        "resolved" if all_resolved else "blocked",
+    ])
+
+print("Dependencies")
+if dependency_rows:
+    print(format_table(["Task ID", "Task", "depends_on", "Dependency Status", "State"], dependency_rows))
+else:
+    print("No dependency constraints in this sprint.")
+PY
+  exit 0
+fi
 
 if [ -z "$OUTPUT_FILE" ]; then
   OUTPUT_FILE="$(dirname "$SPRINT_FILE")/sprint-board.html"

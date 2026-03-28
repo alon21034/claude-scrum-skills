@@ -28,7 +28,7 @@ Lightweight Scrum coordination layer for parallel AI development with [Conductor
 |---|---|---|
 | `/sprint` | Create sprint plan and write `.sprint.json` | Start a new parallel sprint |
 | `/sprint-task` | Claim/show one workspace task with approval gate | Manual task claiming or task review |
-| `/sprint-board` | Generate HTML sprint board | Quick status check across workspaces |
+| `/sprint-board` | Generate sprint board (HTML or text) | Quick status check across workspaces |
 | `/sprint-finish` | Resolve remaining tasks and close sprint | End sprint and finalize statuses |
 | `/sprint-upgrade` | Upgrade sprint skills package | Refresh to latest version |
 
@@ -49,7 +49,7 @@ Conductor note:
    - Auto-claim (recommended): run this repo's `./setup` first, then make sure `conductor.json` has `scripts.setup` wired to `sprint-setup` (the `/sprint` command writes this). After that, press ⌘+K once per task and each workspace auto-claims.
    - Manual claim: if `scripts.setup` is not configured for `sprint-setup`, open each workspace and run `/sprint-task` to claim/view a task.
 5. Implement after explicit approval
-6. Open progress board: `sprint-board .context/.sprint.json --open`
+6. Open progress board: `sprint-board .context/.sprint.json` (auto-opens by default), or `sprint-board .context/.sprint.json --text` for text-only output.
 7. When implementation/review cycle is done, run: `sprint-finish`
 8. Upgrade sprint tooling later with: `/sprint-upgrade`
 

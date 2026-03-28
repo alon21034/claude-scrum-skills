@@ -34,7 +34,7 @@ When the user types `/sprint`, run this skill.
 ## Prerequisites
 - Conductor installed (https://docs.conductor.build/)
 - `jq` installed (`brew install jq`)
-- `python3` available (required for HTML sprint board generation)
+- `python3` available (required for sprint board generation)
 - gstack sprint-setup script at `~/.codex/skills/gstack/bin/sprint-setup` (fallback: `~/.claude/skills/gstack/bin/sprint-setup`)
 
 ---
@@ -250,13 +250,14 @@ Topic: {topic}
 Tasks: {N} ({M} parallel, {K} sequential)
 
 Sprint board:
-  sprint-board {sprint-file-path} --open
+  sprint-board {sprint-file-path}
+  sprint-board {sprint-file-path} --text
 
 Next steps:
   1. Open Conductor
   2. Press ⌘+K {N} times (once per task)
      Each workspace will auto-claim a task and start executing.
-  3. Open the board: sprint-board {sprint-file-path} --open
+  3. Open the board: sprint-board {sprint-file-path}
   4. When implementation/review is complete, run: sprint-finish
 ```
 
